@@ -1,60 +1,44 @@
-name: Android 9 Emulator (Nexus 5 - Stable)
+name: Android Emulator (Nexus 5 - Android 9)
 
 on:
   workflow_dispatch:
 
-permissions:
-  contents: write   # cho phép push file vào repo
-
 jobs:
   run:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
 
       - name: Start Android 9 Nexus 5
-    run: |
-      docker run -d --name android -p 6080:6080 \
-        -e DEVICE="Nexus 5" \
-        budtmo/docker-android:emulator_9.0
-
+        run: |
+          docker run -d --name android -p 6080:6080 \
+            -e DEVICE="Nexus 5" \
+            -e EMULATOR="emulator" \
+            -e APPIUM="false" \
+            -e MOBILE_WEB_TEST="false" \
+            -e AUTO_RECORD="false" \
+            budtmo/docker-android:emulator_9.0
 
       - name: Start Cloudflare Tunnel
         run: |
-          nohup cloudflared tunnel --url http://localhost:6080 > tunnel.log 2>&1 &
+          curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+          chmod +x cloudflared
+          ./cloudflared tunnel --url http://localhost:6080 --no-autoupdate > tunnel.log 2>&1 &
           sleep 10
-          grep -o 'https://.*trycloudflare.com' tunnel.log > remote.txt || echo "Tunnel failed" > remote.txt
-          echo "==== Remote URL ===="
-          cat remote.txt
+          grep -o "https://[-0-9a-z]*\.trycloudflare.com" tunnel.log | head -n1 > url.txt
+          cat url.txt
 
-      - name: Recheck origin via tunnel (avoid 502)
-        run: |
-          url=$(cat remote.txt)
-          echo "Checking origin via $url ..."
-          for i in {1..5}; do
-            if curl -s -o /dev/null -w "%{http_code}" "$url" | grep -q "200"; then
-              echo "Tunnel is OK"
-              exit 0
-            fi
-            echo "Retrying in 5s..."
-            sleep 5
-          done
-          echo "502 error likely"
-          exit 1
+      - name: Recheck origin via tunnel
+        run: curl -I $(cat url.txt)
 
       - name: Commit remote.txt to repo
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          echo "🔗 Access Emulator at:" > remote.txt
+          cat url.txt >> remote.txt
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
           git add remote.txt
-          git commit -m "update remote.txt (Android 9 Nexus 5 URL)" || echo "No changes to commit"
+          git commit -m "Add emulator link"
           git push
-
-      - name: Keep Alive (up to 6h)
-        run: |
-          echo "Keeping emulator alive for 6h..."
-          for i in {1..36}; do
-            echo "Minute $((i*10))..."
-            sleep 600
-          done
