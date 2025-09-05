@@ -4,65 +4,48 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # cho phép commit/push file remote.txt
+  contents: write   # cần cho git push
 
 jobs:
   run:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update -qq
-        sudo apt-get install -y docker.io curl unzip
+      - name: Check Docker
+        run: docker --version
 
-    - name: Start Android 9 (Nexus 5)
-      run: |
-        echo "🚀 Starting Android 9 (Nexus 5) emulator..."
-        docker run -d \
-          --privileged \
-          --name android9-nexus5 \
-          -p 6080:6080 \
-          -e DEVICE="Nexus 5" \
-          -e ANDROID_VERSION=9.0 \
-          -e EMULATOR_ARGS="-gpu swiftshader_indirect -noaudio -no-boot-anim" \
-          -e WEB_VNC=true \
-          budtmo/docker-android-x86-9.0
+      - name: Start Android 9 Nexus 5
+        run: |
+          docker run -d --name android -p 6080:6080 -p 5554:5554 -p 5555:5555 \
+            -e DEVICE="Nexus 5" \
+            -e ANDROID_VERSION=9.0 \
+            -e APPIUM=false \
+            budtmo/docker-android-x86-9.0
 
-        echo "✅ Emulator started!"
+      - name: Start Cloudflare Tunnel
+        run: |
+          curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+          chmod +x cloudflared
+          ./cloudflared tunnel --url http://localhost:6080 --no-autoupdate > tunnel.log 2>&1 &
+          sleep 10
+          grep -o 'https://.*trycloudflare.com' tunnel.log > remote.txt
+          cat remote.txt
 
-    - name: Setup Cloudflared Tunnel
-      run: |
-        echo "🌐 Downloading cloudflared..."
-        curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
-        chmod +x cloudflared
+      - name: Commit remote.txt to repo
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git add remote.txt
+          git commit -m "Update remote.txt with Cloudflare URL"
+          git push
 
-        echo "🚀 Starting tunnel..."
-        ./cloudflared tunnel --url http://localhost:6080 --no-autoupdate --logfile cloudflared.log &
-        sleep 20
-
-        # lấy link tunnel
-        TUNNEL_URL=$(grep -oE "https://[a-zA-Z0-9.-]+\.trycloudflare\.com" cloudflared.log | head -1)
-        echo "✅ Tunnel URL: $TUNNEL_URL"
-
-        # lưu vào remote.txt
-        echo "$TUNNEL_URL" > remote.txt
-
-    - name: Push remote.txt
-      run: |
-        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        git config --global user.name "github-actions[bot]"
-        git add remote.txt
-        git commit -m "Update remote.txt with tunnel link [skip ci]" || echo "No changes to commit"
-        git push origin HEAD:${GITHUB_REF##*/}
-
-    - name: Keep Alive Session (6h)
-      run: |
-        echo "⏳ Keep-alive session started..."
-        for i in {1..360}; do
-          echo "🟢 Minute $i/360 - emulator running"
-          sleep 60
-        done
+      - name: Keep Alive (6h)
+        run: |
+          echo "Emulator running. Keeping alive for 6 hours..."
+          for i in {1..2160}; do
+            echo "tick $i"
+            sleep 10
+          done
