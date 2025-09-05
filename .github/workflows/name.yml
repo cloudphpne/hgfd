@@ -1,0 +1,59 @@
+name: Android 9 Emulator (Nexus 5 - Stable)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # cho phép push file vào repo
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Start Android 9 Nexus 5
+        run: |
+          docker run -d --name android -p 6080:6080 \
+            -e DEVICE="Nexus 5" \
+            budtmo/docker-android-x86-9.0
+
+      - name: Start Cloudflare Tunnel
+        run: |
+          nohup cloudflared tunnel --url http://localhost:6080 > tunnel.log 2>&1 &
+          sleep 10
+          grep -o 'https://.*trycloudflare.com' tunnel.log > remote.txt || echo "Tunnel failed" > remote.txt
+          echo "==== Remote URL ===="
+          cat remote.txt
+
+      - name: Recheck origin via tunnel (avoid 502)
+        run: |
+          url=$(cat remote.txt)
+          echo "Checking origin via $url ..."
+          for i in {1..5}; do
+            if curl -s -o /dev/null -w "%{http_code}" "$url" | grep -q "200"; then
+              echo "Tunnel is OK"
+              exit 0
+            fi
+            echo "Retrying in 5s..."
+            sleep 5
+          done
+          echo "502 error likely"
+          exit 1
+
+      - name: Commit remote.txt to repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add remote.txt
+          git commit -m "update remote.txt (Android 9 Nexus 5 URL)" || echo "No changes to commit"
+          git push
+
+      - name: Keep Alive (up to 6h)
+        run: |
+          echo "Keeping emulator alive for 6h..."
+          for i in {1..36}; do
+            echo "Minute $((i*10))..."
+            sleep 600
+          done
