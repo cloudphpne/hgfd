@@ -2,7 +2,8 @@ name: Android Emulator (Nexus 5 - Android 9)
 
 on:
   workflow_dispatch:
-
+permissions:
+  contents: write
 jobs:
   run:
     runs-on: ubuntu-latest
