@@ -1,52 +1,68 @@
-name: Android Emulator (Nexus 5 - Android 9)
+name: Android 9 Emulator (Nexus 5)
 
 on:
   workflow_dispatch:
+
 permissions:
-  contents: write
+  contents: write   # cho phép commit/push file remote.txt
+
 jobs:
   run:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
+    - name: Checkout repo
+      uses: actions/checkout@v4
 
-      - name: Start Android 9 Nexus 5
-        run: |
-          docker run -d --name android -p 6080:6080 \
-            -e DEVICE="Nexus 5" \
-            -e EMULATOR="emulator" \
-            -e APPIUM="false" \
-            -e MOBILE_WEB_TEST="false" \
-            -e AUTO_RECORD="false" \
-            budtmo/docker-android:emulator_9.0
+    - name: Install dependencies
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y docker.io curl unzip
 
-      - name: Start Cloudflare Tunnel
-        run: |
-          curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
-          chmod +x cloudflared
-          ./cloudflared tunnel --url http://localhost:6080 --no-autoupdate > tunnel.log 2>&1 &
-          sleep 10
-          grep -o "https://[-0-9a-z]*\.trycloudflare.com" tunnel.log | head -n1 > url.txt
-          cat url.txt
+    - name: Start Android 9 (Nexus 5)
+      run: |
+        echo "🚀 Starting Android 9 (Nexus 5) emulator..."
+        docker run -d \
+          --privileged \
+          --name android9-nexus5 \
+          -p 6080:6080 \
+          -e DEVICE="Nexus 5" \
+          -e ANDROID_VERSION=9.0 \
+          -e EMULATOR_ARGS="-gpu swiftshader_indirect -noaudio -no-boot-anim" \
+          -e WEB_VNC=true \
+          budtmo/docker-android-x86-9.0
 
-      - name: Recheck origin via tunnel
-        run: curl -I $(cat url.txt)
+        echo "✅ Emulator started!"
 
-      - name: Commit remote.txt to repo
-        run: |
-          echo "🔗 Access Emulator at:" > remote.txt
-          cat url.txt >> remote.txt
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
-          git add remote.txt
-          git commit -m "Add emulator link"
-          git push
-       - name: Keep Alive Session
-         run: |
-          echo "⏳ Keep-alive session started (6 hours max)..."
-          for i in {1..360}; do
-            echo "🟢 Running... $i/360 minutes"
-            sleep 60
-          done
+    - name: Setup Cloudflared Tunnel
+      run: |
+        echo "🌐 Downloading cloudflared..."
+        curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+        chmod +x cloudflared
+
+        echo "🚀 Starting tunnel..."
+        ./cloudflared tunnel --url http://localhost:6080 --no-autoupdate --logfile cloudflared.log &
+        sleep 20
+
+        # lấy link tunnel
+        TUNNEL_URL=$(grep -oE "https://[a-zA-Z0-9.-]+\.trycloudflare\.com" cloudflared.log | head -1)
+        echo "✅ Tunnel URL: $TUNNEL_URL"
+
+        # lưu vào remote.txt
+        echo "$TUNNEL_URL" > remote.txt
+
+    - name: Push remote.txt
+      run: |
+        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git config --global user.name "github-actions[bot]"
+        git add remote.txt
+        git commit -m "Update remote.txt with tunnel link [skip ci]" || echo "No changes to commit"
+        git push origin HEAD:${GITHUB_REF##*/}
+
+    - name: Keep Alive Session (6h)
+      run: |
+        echo "⏳ Keep-alive session started..."
+        for i in {1..360}; do
+          echo "🟢 Minute $i/360 - emulator running"
+          sleep 60
+        done
