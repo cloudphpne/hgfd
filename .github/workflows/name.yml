@@ -43,3 +43,10 @@ jobs:
           git add remote.txt
           git commit -m "Add emulator link"
           git push
+       - name: Keep Alive Session
+         run: |
+          echo "⏳ Keep-alive session started (6 hours max)..."
+          for i in {1..360}; do
+            echo "🟢 Running... $i/360 minutes"
+            sleep 60
+          done
