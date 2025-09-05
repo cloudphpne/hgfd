@@ -1,4 +1,4 @@
-name: Android 9 (Nexus — Docker-Android) — noVNC + Cloudflare URL
+name: Android 7 (Nexus 5 — Docker-Android) — noVNC + Cloudflare URL
 permissions:
   contents: write
 
@@ -8,34 +8,34 @@ on:
       device:
         description: 'Thiết bị mô phỏng'
         required: false
-        default: 'Nexus 5'       # đổi mặc định
+        default: 'Nexus 5'
       width:
         description: 'Chiều rộng màn hình'
         required: false
-        default: '1080'
+        default: '720'
       height:
         description: 'Chiều cao màn hình'
         required: false
-        default: '1920'
+        default: '1280'
       memory_mb:
         description: 'RAM cho emulator (MB)'
         required: false
-        default: '4096'
+        default: '2048'
       cores:
         description: 'Số CPU cores'
         required: false
-        default: '4'
+        default: '2'
 
 env:
-  IMAGE_TAG: emulator_9.0
-  CONTAINER_NAME: android9
+  IMAGE_TAG: emulator_7.1
+  CONTAINER_NAME: android7
   NOVNC_PORT: 6080
   ADB_PORT: 5555
   DEVICE_NAME: ${{ github.event.inputs.device || 'Nexus 5' }}
-  SCREEN_WIDTH: ${{ github.event.inputs.width  || '1080' }}
-  SCREEN_HEIGHT: ${{ github.event.inputs.height || '1920' }} 
-  RAM_MB:        ${{ github.event.inputs.memory_mb || '4096' }}
-  CPU_CORES:     ${{ github.event.inputs.cores || '4' }}
+  SCREEN_WIDTH: ${{ github.event.inputs.width  || '720' }}
+  SCREEN_HEIGHT: ${{ github.event.inputs.height || '1280' }} 
+  RAM_MB:        ${{ github.event.inputs.memory_mb || '2048' }}
+  CPU_CORES:     ${{ github.event.inputs.cores || '2' }}
 
 jobs:
   run:
@@ -48,7 +48,7 @@ jobs:
         with:
           persist-credentials: true
 
-      - name: Pull Docker-Android (Android 9)
+      - name: Pull Docker-Android (Android 7)
         run: docker pull budtmo/docker-android:${IMAGE_TAG}
 
       - name: Run Docker-Android (noVNC)
@@ -65,7 +65,7 @@ jobs:
             -e SCREEN_WIDTH=${SCREEN_WIDTH} \
             -e SCREEN_HEIGHT=${SCREEN_HEIGHT} \
             -e SCREEN_DEPTH=24 \
-            -e EMULATOR_ARGS="-memory ${RAM_MB} -cores ${CPU_CORES} -gpu swiftshader_indirect -noaudio -no-boot-anim -partition-size 2048 -netdelay none -netspeed full" \
+            -e EMULATOR_ARGS="-memory ${RAM_MB} -cores ${CPU_CORES} -gpu swiftshader_indirect -noaudio -no-boot-anim -partition-size 1024 -netdelay none -netspeed full" \
             --shm-size=2g \
             budtmo/docker-android:${IMAGE_TAG}
 
@@ -131,13 +131,13 @@ jobs:
           git config user.name  "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
           git add remote.txt
-          git commit -m "update remote.txt (Android 9 URL)" || echo "no changes"
+          git commit -m "update remote.txt (Android 7 URL)" || echo "no changes"
           git push origin HEAD:${GITHUB_REF_NAME}
 
       - name: Show URL
         run: |
           echo "===================================================="
-          echo "Open Android 9 (Nexus) in your browser:"
+          echo "Open Android 7 (Nexus 5) in your browser:"
           cat remote.txt | head -1
           echo "===================================================="
 
